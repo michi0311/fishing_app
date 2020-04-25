@@ -1,20 +1,25 @@
-const user = require('../models/index').user;
+const user = require('../database/models/index').user;
 const hashTool = require("../helpers/hashTool")
 const validator = require('validator');
 
 module.exports = {
-    async create (req,res) {
+    async create(req, res) {
         try {
             if (validator.isEmpty(req.body.username || "")) {
                 return res.status(400).send({ error: "No username provided" })
-            }  else if (validator.isEmpty(req.body.password || "")) {
+            } else if (validator.isEmpty(req.body.password || "")) {
                 return res.status(400).send({ error: "No password provided" })
+            }
+
+            let uNameTaken = await user.findOne({where: {username: req.body.username}});
+            if (uNameTaken) {
+                return res.status(400).send({error: "Username already taken"})
             }
 
             const userCollection = await user.create({
                 username: req.body.username,
                 email: req.body.email,
-                password: hashTool.createHash(req.body.password)
+                password: await hashTool.createHash(req.body.password)
             })
 
             if (!userCollection) {
@@ -30,14 +35,14 @@ module.exports = {
         }
     },
 
-    async getByID (req,res) {
+    async getByID(req, res) {
         try {
             const userCollection = await user.findByPk(parseInt(req.params.id));
             if (userCollection) {
                 delete userCollection.dataValues["password"]
                 res.status(200).send({ user: userCollection });
             } else {
-                res.status(400).send({error: "User not found"})
+                res.status(400).send({ error: "User not found" })
             }
         } catch (e) {
             console.log(e);
@@ -45,23 +50,23 @@ module.exports = {
         }
     },
 
-    async getAllUsers (req,res) {
+    async getAllUsers(req, res) {
         try {
-            const userCollection = await user.findAll({attributes: { exclude: ["user.password"] }})
-            res.status(200).send({user: userCollection})
+            const userCollection = await user.findAll({ attributes: { exclude: ["password"] } })
+            res.status(200).send({ user: userCollection })
         } catch (e) {
             console.log(e);
             res.status(500).send(e)
         }
     },
 
-    async updateUser (req,res) {
+    async updateUser(req, res) {
         try {
             const _id = req.params.id;
             const updates = Object.keys(req.body);
-            const allowedUpdates = ["username", "email","password"];
+            const allowedUpdates = ["username", "email", "password"];
             const isValidOperation = updates.every((update) => allowedUpdates.includes(update));
-    
+
             if (!isValidOperation) {
                 return res.status(400).send({ error: "Invalid Updates" })
             }
@@ -75,7 +80,7 @@ module.exports = {
                 req.body.password = await hashTool.createHash(req.body.password);
             }
 
-            const userReturn = await user.update(req.body, { where: { id: _id } }) 
+            const userReturn = await user.update(req.body, { where: { id: _id } })
             if (userReturn[0] === 0) {
                 return res.status(404).send({ error: "Update failed" })
             }
@@ -88,23 +93,23 @@ module.exports = {
 
     //TODO update and delte only your user
 
-    async deleteUser (req,res) {
+    async deleteUser(req, res) {
         try {
-            try {
-                const _id = req.params.id;
-                const userCollection = await user.findByPk(parseInt(_id));
-                if (userCollection) {
-                    //if there already exists a booking from the user, the user doesn't get deleted
-                    userCollection.destroy();
-    
-                    res.status(200).send({
-                        msg: "Succesfully deleted!",
-                        user: userCollection
-                    });
-                } else {
-                    res.status(404).send({ msg: "User not found" });
-                }
-        
+
+            const _id = req.params.id;
+            const userCollection = await user.findByPk(parseInt(_id));
+            if (userCollection) {
+                //if there already exists a booking from the user, the user doesn't get deleted
+                userCollection.destroy();
+
+                res.status(200).send({
+                    msg: "Succesfully deleted!",
+                    user: userCollection
+                });
+            } else {
+                res.status(404).send({ msg: "User not found" });
+            }
+
         } catch (e) {
             console.log(e);
             res.status(500).send(e)
